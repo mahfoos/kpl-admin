@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand palette (mirrors the KPL screen app) */
+  --color-gold: #f5b700;
+  --color-gold-soft: #ffd34d;
+  --color-navy: #0b1220;
+  --color-navy-light: #131c2e;
+  --color-electric: #00c2ff;
+  --color-electric-soft: #5fd9ff;
+  --color-ink: #050816;
+
+  --color-background: #050816;
+  --color-foreground: #f5f7fa;
+
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  border-color: rgb(255 255 255 / 0.08);
+}
+
+body {
+  background-color: var(--color-ink);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@utility glass {
+  background: rgba(19, 28, 46, 0.55);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@utility text-gradient-gold {
+  background: linear-gradient(135deg, #ffd34d 0%, #f5b700 45%, #ffae00 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
