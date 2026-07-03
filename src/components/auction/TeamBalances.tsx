@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { formatAmount } from "@/lib/api";
 import type { AuctionState, Team } from "@/types";
 
@@ -35,12 +36,22 @@ export function TeamBalances({
             }`}
           >
             <div className="flex items-center justify-between">
-              <span
-                className="font-display text-lg font-extrabold leading-none"
-                style={{ color: team.primary }}
-              >
-                {team.initials}
-              </span>
+              {team.logo ? (
+                <Image
+                  src={team.logo}
+                  alt={team.name}
+                  width={36}
+                  height={36}
+                  className="size-9 rounded-lg object-cover ring-1 ring-white/15"
+                />
+              ) : (
+                <span
+                  className="font-display text-lg font-extrabold leading-none"
+                  style={{ color: team.primary }}
+                >
+                  {team.initials}
+                </span>
+              )}
               <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-white/70">
                 {count} {count === 1 ? "player" : "players"}
               </span>

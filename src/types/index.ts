@@ -14,6 +14,8 @@ export interface Team {
   initials: string;
   squadStatus: string;
   auctionStatus: string;
+  /** Optional team logo/crest under /public, e.g. "/teams/buhariyadi-blasters.jpg". */
+  logo?: string;
 }
 
 export interface Player {

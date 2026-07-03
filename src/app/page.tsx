@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import Image from "next/image";
 import {
   Check,
   Folder,
@@ -29,6 +30,7 @@ export default function AdminPage() {
   );
   const [selectedClub, setSelectedClub] = useState<string>("All");
   const [selectedRole, setSelectedRole] = useState<string>("All");
+  const [selectedStatus, setSelectedStatus] = useState<string>("All");
   const [query, setQuery] = useState("");
 
   useEffect(() => {
@@ -99,11 +101,26 @@ export default function AdminPage() {
 
   const ROLES = ["All", "Batsman", "Bowler", "All-Rounder", "Wicket Keeper"];
 
+  // Live auction-status counts across the whole roster.
+  const statusCounts = { available: 0, sold: 0, unsold: 0 };
+  for (const p of players) {
+    const st = state?.players[p.id]?.status ?? "available";
+    statusCounts[st] += 1;
+  }
+  const STATUSES: { key: string; label: string; count: number }[] = [
+    { key: "All", label: "All", count: players.length },
+    { key: "available", label: "Available", count: statusCounts.available },
+    { key: "sold", label: "Sold", count: statusCounts.sold },
+    { key: "unsold", label: "Unsold", count: statusCounts.unsold },
+  ];
+
   const q = query.trim().toLowerCase();
   const visiblePlayers = players.filter((p) => {
     const club = p.club ?? "Unassigned";
+    const st = state?.players[p.id]?.status ?? "available";
     if (selectedClub !== "All" && club !== selectedClub) return false;
     if (selectedRole !== "All" && p.role !== selectedRole) return false;
+    if (selectedStatus !== "All" && st !== selectedStatus) return false;
     if (q && !p.name.toLowerCase().includes(q) && !p.role.toLowerCase().includes(q))
       return false;
     return true;
@@ -256,11 +273,22 @@ export default function AdminPage() {
                             }`}
                           >
                             <span className="flex w-full items-center justify-between">
-                              <span
-                                className="font-display text-base font-extrabold"
-                                style={{ color: team.primary }}
-                              >
-                                {team.initials}
+                              <span className="flex items-center gap-2">
+                                {team.logo ? (
+                                  <Image
+                                    src={team.logo}
+                                    alt={team.name}
+                                    width={28}
+                                    height={28}
+                                    className="size-7 rounded-md object-cover ring-1 ring-white/15"
+                                  />
+                                ) : null}
+                                <span
+                                  className="font-display text-base font-extrabold"
+                                  style={{ color: team.primary }}
+                                >
+                                  {team.initials}
+                                </span>
                               </span>
                               {isLeading && (
                                 <span className="text-[9px] font-black uppercase text-gold">
@@ -377,6 +405,33 @@ export default function AdminPage() {
 
             {/* Player grid */}
             <div>
+              {/* Status filter */}
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {STATUSES.map((s) => {
+                  const active = selectedStatus === s.key;
+                  const tone =
+                    s.key === "sold"
+                      ? "border-green-500/50 bg-green-500/15 text-green-300"
+                      : s.key === "unsold"
+                        ? "border-red-500/50 bg-red-500/15 text-red-300"
+                        : "border-gold bg-gold/15 text-gold";
+                  return (
+                    <button
+                      key={s.key}
+                      onClick={() => setSelectedStatus(s.key)}
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold transition-all ${
+                        active
+                          ? tone
+                          : "border-white/10 bg-white/5 text-white/60 hover:text-white"
+                      }`}
+                    >
+                      {s.label}
+                      <span className="ml-1.5 tabular-nums opacity-70">{s.count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* Role filter */}
               <div className="mb-3 flex flex-wrap gap-1.5">
                 {ROLES.map((role) => (
@@ -396,7 +451,8 @@ export default function AdminPage() {
 
               <p className="mb-2 text-xs text-white/40">
                 {selectedClub === "All" ? "All teams" : selectedClub}
-                {selectedRole === "All" ? "" : ` · ${selectedRole}`} ·{" "}
+                {selectedRole === "All" ? "" : ` · ${selectedRole}`}
+                {selectedStatus === "All" ? "" : ` · ${selectedStatus}`} ·{" "}
                 {visiblePlayers.length} player
                 {visiblePlayers.length === 1 ? "" : "s"}
                 {q ? ` matching “${query.trim()}”` : ""}
@@ -456,6 +512,88 @@ export default function AdminPage() {
             budget={budget}
             highlightTeamId={current?.leadingTeamId}
           />
+        </section>
+
+        {/* Team squads — who each team has bought */}
+        <section className="mt-8">
+          <p className="mb-3 text-xs font-bold uppercase tracking-[0.3em] text-white/40">
+            Team Squads
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {teams.map((team) => {
+              const ts = state?.teams[team.id];
+              const squad = (ts?.playerIds ?? [])
+                .map((id) => {
+                  const p = playerById.get(id);
+                  return {
+                    id,
+                    name: p?.name ?? id,
+                    price: state?.players[id]?.soldPrice,
+                  };
+                })
+                .sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+              const spent = ts?.spent ?? 0;
+              return (
+                <div
+                  key={team.id}
+                  className="rounded-2xl border border-white/10 bg-navy-light/40 p-3"
+                >
+                  <div className="flex items-center gap-2">
+                    {team.logo ? (
+                      <Image
+                        src={team.logo}
+                        alt={team.name}
+                        width={28}
+                        height={28}
+                        className="size-7 rounded-md object-cover ring-1 ring-white/15"
+                      />
+                    ) : (
+                      <span
+                        className="font-display text-sm font-extrabold"
+                        style={{ color: team.primary }}
+                      >
+                        {team.initials}
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-white">
+                        {team.shortName}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-white/70">
+                      {squad.length}
+                    </span>
+                  </div>
+
+                  <p className="mt-1 text-[10px] font-medium text-white/40">
+                    {formatAmount(spent)} spent · {formatAmount(budget - spent)} left
+                  </p>
+
+                  {squad.length === 0 ? (
+                    <p className="mt-3 rounded-lg border border-dashed border-white/10 py-3 text-center text-[11px] text-white/30">
+                      No players yet
+                    </p>
+                  ) : (
+                    <ul className="mt-2 space-y-1">
+                      {squad.map((s) => (
+                        <li
+                          key={s.id}
+                          className="flex items-center justify-between gap-2 rounded-lg bg-white/5 px-2.5 py-1.5"
+                        >
+                          <span className="truncate text-xs font-medium text-white/85">
+                            {s.name}
+                          </span>
+                          <span className="shrink-0 text-[11px] font-bold tabular-nums text-gold">
+                            {s.price != null ? formatAmount(s.price) : "—"}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </section>
 
         {/* Danger zone */}
