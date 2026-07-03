@@ -1,4 +1,4 @@
-import type { AuctionAction, AuctionMeta } from "@/types";
+import type { AuctionAction, AuctionMeta, AuctionState } from "@/types";
 
 /**
  * Base URL of the KPL screen app, which owns the auction state + API.
@@ -15,6 +15,17 @@ export async function fetchMeta(): Promise<AuctionMeta> {
   const res = await fetch(`${API_BASE}/api/auction/meta`);
   if (!res.ok) throw new Error(`meta ${res.status}`);
   return (await res.json()) as AuctionMeta;
+}
+
+/** Read the current auction state from the screen app. Null on failure. */
+export async function fetchState(): Promise<AuctionState | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/auction/state`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as AuctionState;
+  } catch {
+    return null;
+  }
 }
 
 /** POST an auctioneer action; returns the error string (if any). */

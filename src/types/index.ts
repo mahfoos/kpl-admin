@@ -28,6 +28,8 @@ export interface Player {
   status: string;
   /** Optional promo card image under /public, e.g. "/auction/rijas.jpg" */
   image?: string;
+  /** Player's home club, e.g. "Kins National". Used to group the picker by team. */
+  club?: string;
 }
 
 // ----- Live auction state -----

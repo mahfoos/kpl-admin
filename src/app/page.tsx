@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Check,
+  Folder,
   Gavel,
   Monitor,
   RotateCcw,
+  Search,
   Undo2,
+  Users,
   Wifi,
   WifiOff,
   X,
@@ -24,6 +27,9 @@ export default function AdminPage() {
   const [notice, setNotice] = useState<{ kind: "error" | "ok"; msg: string } | null>(
     null,
   );
+  const [selectedClub, setSelectedClub] = useState<string>("All");
+  const [selectedRole, setSelectedRole] = useState<string>("All");
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     fetchMeta()
@@ -72,6 +78,37 @@ export default function AdminPage() {
   }
 
   const { teams, players, budget, baseDefault } = meta;
+
+  // Club "folders" in roster order, each with total + still-available counts.
+  const clubOrder: string[] = [];
+  const clubTotals = new Map<string, number>();
+  const clubAvail = new Map<string, number>();
+  let availAll = 0;
+  for (const p of players) {
+    const club = p.club ?? "Unassigned";
+    if (!clubTotals.has(club)) clubOrder.push(club);
+    clubTotals.set(club, (clubTotals.get(club) ?? 0) + 1);
+    const isAvail = (state?.players[p.id]?.status ?? "available") === "available";
+    if (isAvail) {
+      clubAvail.set(club, (clubAvail.get(club) ?? 0) + 1);
+      availAll += 1;
+    } else if (!clubAvail.has(club)) {
+      clubAvail.set(club, 0);
+    }
+  }
+
+  const ROLES = ["All", "Batsman", "Bowler", "All-Rounder", "Wicket Keeper"];
+
+  const q = query.trim().toLowerCase();
+  const visiblePlayers = players.filter((p) => {
+    const club = p.club ?? "Unassigned";
+    if (selectedClub !== "All" && club !== selectedClub) return false;
+    if (selectedRole !== "All" && p.role !== selectedRole) return false;
+    if (q && !p.name.toLowerCase().includes(q) && !p.role.toLowerCase().includes(q))
+      return false;
+    return true;
+  });
+
   const current = state?.current ?? null;
   const currentPlayer = current ? playerById.get(current.playerId) : null;
   const base = currentPlayer?.basePriceValue ?? baseDefault;
@@ -285,41 +322,126 @@ export default function AdminPage() {
           )}
         </section>
 
-        {/* Player picker */}
+        {/* Player picker — grouped by team, with search */}
         <section className="mt-6">
-          <p className="mb-3 text-xs font-bold uppercase tracking-[0.3em] text-white/40">
-            Players
-          </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {players.map((p) => {
-              const ps = state?.players[p.id];
-              const status = ps?.status ?? "available";
-              const isCurrent = current?.playerId === p.id;
-              const soldTeam =
-                ps?.soldToTeamId &&
-                teams.find((t) => t.id === ps.soldToTeamId)?.shortName;
-              return (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs font-bold uppercase tracking-[0.3em] text-white/40">
+              Players
+            </p>
+            {/* Search */}
+            <div className="relative w-full sm:w-72">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/30" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search name or role…"
+                className="w-full rounded-full border border-white/10 bg-white/5 py-2 pl-9 pr-9 text-sm text-white placeholder:text-white/30 focus:border-gold/50 focus:outline-none"
+              />
+              {query && (
                 <button
-                  key={p.id}
-                  onClick={() => run({ type: "SELECT_PLAYER", playerId: p.id })}
-                  className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-all ${
-                    isCurrent
-                      ? "border-gold bg-gold/10"
-                      : "border-white/10 bg-navy-light/40 hover:border-white/25"
-                  }`}
+                  onClick={() => setQuery("")}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-white/40 hover:text-white"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold text-white">{p.name}</p>
-                    <p className="text-xs text-white/40">{p.role}</p>
-                  </div>
-                  <StatusPill
-                    status={status}
-                    soldTeam={soldTeam}
-                    price={ps?.soldPrice}
-                  />
+                  <X className="size-3.5" />
                 </button>
-              );
-            })}
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
+            {/* Team folders */}
+            <aside className="lg:sticky lg:top-20 lg:self-start">
+              <div className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
+                <FolderButton
+                  icon={<Users className="size-4" />}
+                  label="All Players"
+                  avail={availAll}
+                  total={players.length}
+                  active={selectedClub === "All"}
+                  onClick={() => setSelectedClub("All")}
+                />
+                {clubOrder.map((club) => (
+                  <FolderButton
+                    key={club}
+                    icon={<Folder className="size-4" />}
+                    label={club}
+                    avail={clubAvail.get(club) ?? 0}
+                    total={clubTotals.get(club) ?? 0}
+                    active={selectedClub === club}
+                    onClick={() => setSelectedClub(club)}
+                  />
+                ))}
+              </div>
+            </aside>
+
+            {/* Player grid */}
+            <div>
+              {/* Role filter */}
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                {ROLES.map((role) => (
+                  <button
+                    key={role}
+                    onClick={() => setSelectedRole(role)}
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition-all ${
+                      selectedRole === role
+                        ? "border-gold bg-gold/15 text-gold"
+                        : "border-white/10 bg-white/5 text-white/60 hover:text-white"
+                    }`}
+                  >
+                    {role === "All" ? "All Roles" : role}
+                  </button>
+                ))}
+              </div>
+
+              <p className="mb-2 text-xs text-white/40">
+                {selectedClub === "All" ? "All teams" : selectedClub}
+                {selectedRole === "All" ? "" : ` · ${selectedRole}`} ·{" "}
+                {visiblePlayers.length} player
+                {visiblePlayers.length === 1 ? "" : "s"}
+                {q ? ` matching “${query.trim()}”` : ""}
+              </p>
+              {visiblePlayers.length === 0 ? (
+                <p className="rounded-xl border border-white/10 bg-navy-light/40 px-4 py-8 text-center text-sm text-white/40">
+                  No players match.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {visiblePlayers.map((p) => {
+                    const ps = state?.players[p.id];
+                    const status = ps?.status ?? "available";
+                    const isCurrent = current?.playerId === p.id;
+                    const soldTeam =
+                      ps?.soldToTeamId &&
+                      teams.find((t) => t.id === ps.soldToTeamId)?.shortName;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => run({ type: "SELECT_PLAYER", playerId: p.id })}
+                        className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition-all ${
+                          isCurrent
+                            ? "border-gold bg-gold/10"
+                            : "border-white/10 bg-navy-light/40 hover:border-white/25"
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-white">{p.name}</p>
+                          <p className="truncate text-xs text-white/40">
+                            {p.role}
+                            {selectedClub === "All" && p.club ? ` · ${p.club}` : ""}
+                          </p>
+                        </div>
+                        <StatusPill
+                          status={status}
+                          soldTeam={soldTeam}
+                          price={ps?.soldPrice}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
@@ -350,6 +472,49 @@ export default function AdminPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function FolderButton({
+  icon,
+  label,
+  avail,
+  total,
+  active,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  avail: number;
+  total: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const done = avail === 0 && total > 0;
+  return (
+    <button
+      onClick={onClick}
+      title={`${avail} available of ${total}`}
+      className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm font-semibold transition-all lg:w-full ${
+        active
+          ? "border-gold bg-gold/15 text-white"
+          : "border-white/10 bg-navy-light/40 text-white/70 hover:border-white/25 hover:text-white"
+      }`}
+    >
+      <span className={active ? "text-gold" : "text-white/40"}>{icon}</span>
+      <span className="truncate">{label}</span>
+      <span
+        className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${
+          done
+            ? "bg-white/5 text-white/30"
+            : active
+              ? "bg-gold/20 text-gold"
+              : "bg-white/10 text-white/50"
+        }`}
+      >
+        {done ? total : `${avail}/${total}`}
+      </span>
+    </button>
   );
 }
 
